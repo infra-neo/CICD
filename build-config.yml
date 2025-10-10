@@ -1,0 +1,44 @@
+---
+# Build Configuration File
+# This file defines the build settings for the project
+
+# Java Configuration
+java_version: 17
+
+# Maven Configuration
+maven_version: 3.9.2
+
+# Build Settings
+build:
+  tool: maven  # Options: maven, mule-maven-plugin
+  clean_install: true
+  skip_tests: false
+
+# Test Configuration
+test:
+  enabled: true
+  command: mvn test
+  
+# SonarQube Configuration
+sonarqube:
+  enabled: true
+  host_url: http://sonarqube:9000
+  project_key: ${env.JOB_NAME}
+  project_name: ${env.JOB_NAME}
+
+# Nexus Configuration
+nexus:
+  enabled: true
+  url: http://nexus:8081
+  repository:
+    releases: maven-releases
+    snapshots: maven-snapshots
+
+# Additional Maven Goals
+maven:
+  goals:
+    - clean
+    - install
+    - test
+    - sonar:sonar
+    - deploy
