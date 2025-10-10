@@ -6,6 +6,13 @@ sonarqube_extensions/
 sonarqube_logs/
 nexus_data/
 
+# Docker Compose override (user-specific)
+docker-compose.override.yml
+
+# Environment files
+.env
+.env.local
+
 # Temporary files
 *.tmp
 *.log
