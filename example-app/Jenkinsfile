@@ -1,0 +1,148 @@
+pipeline {
+    agent any
+    
+    environment {
+        MAVEN_OPTS = '-Dmaven.repo.local=/root/.m2/repository'
+        SONAR_TOKEN = credentials('sonarqube-token')
+        NEXUS_CREDENTIALS = credentials('nexus-credentials')
+    }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                echo 'Checking out source code...'
+                checkout scm
+            }
+        }
+        
+        stage('Build') {
+            steps {
+                echo 'Building the application...'
+                dir('example-app') {
+                    sh 'mvn clean compile'
+                }
+            }
+        }
+        
+        stage('Unit Tests') {
+            steps {
+                echo 'Running unit tests...'
+                dir('example-app') {
+                    sh 'mvn test'
+                }
+            }
+            post {
+                always {
+                    junit 'example-app/target/surefire-reports/*.xml'
+                }
+            }
+        }
+        
+        stage('Security Scan') {
+            steps {
+                echo 'Running security vulnerability scan...'
+                dir('example-app') {
+                    script {
+                        try {
+                            sh 'mvn dependency-check:check'
+                        } catch (Exception e) {
+                            echo "Security scan found vulnerabilities: ${e.message}"
+                            // Continue pipeline even if vulnerabilities found
+                            currentBuild.result = 'UNSTABLE'
+                        }
+                    }
+                }
+            }
+            post {
+                always {
+                    publishHTML([
+                        allowMissing: true,
+                        alwaysLinkToLastBuild: true,
+                        keepAll: true,
+                        reportDir: 'example-app/target',
+                        reportFiles: 'dependency-check-report.html',
+                        reportName: 'Dependency Check Report'
+                    ])
+                }
+            }
+        }
+        
+        stage('SonarQube Analysis') {
+            steps {
+                echo 'Running SonarQube code quality analysis...'
+                dir('example-app') {
+                    script {
+                        withSonarQubeEnv('SonarQube') {
+                            sh """
+                                mvn sonar:sonar \
+                                  -Dsonar.projectKey=example-app \
+                                  -Dsonar.host.url=http://sonarqube:9000 \
+                                  -Dsonar.login=${SONAR_TOKEN}
+                            """
+                        }
+                    }
+                }
+            }
+        }
+        
+        stage('Quality Gate') {
+            steps {
+                echo 'Waiting for SonarQube Quality Gate...'
+                script {
+                    timeout(time: 5, unit: 'MINUTES') {
+                        try {
+                            def qg = waitForQualityGate()
+                            if (qg.status != 'OK') {
+                                echo "Quality Gate failed: ${qg.status}"
+                                currentBuild.result = 'UNSTABLE'
+                            }
+                        } catch (Exception e) {
+                            echo "Quality Gate check failed: ${e.message}"
+                            currentBuild.result = 'UNSTABLE'
+                        }
+                    }
+                }
+            }
+        }
+        
+        stage('Package') {
+            steps {
+                echo 'Packaging the application...'
+                dir('example-app') {
+                    sh 'mvn package -DskipTests'
+                }
+            }
+        }
+        
+        stage('Deploy to Nexus') {
+            when {
+                branch 'main'
+            }
+            steps {
+                echo 'Deploying artifacts to Nexus...'
+                dir('example-app') {
+                    script {
+                        sh """
+                            mvn deploy -DskipTests \
+                              -DaltDeploymentRepository=nexus-snapshots::default::http://nexus:8081/repository/maven-snapshots/
+                        """
+                    }
+                }
+            }
+        }
+    }
+    
+    post {
+        success {
+            echo 'Pipeline completed successfully!'
+            archiveArtifacts artifacts: 'example-app/target/*.jar', fingerprint: true
+        }
+        failure {
+            echo 'Pipeline failed!'
+        }
+        always {
+            echo 'Cleaning up workspace...'
+            cleanWs()
+        }
+    }
+}

@@ -1,0 +1,54 @@
+jenkins:
+  systemMessage: "CI/CD Stack - Jenkins with SonarQube, Nexus and PostgreSQL"
+  numExecutors: 2
+  mode: NORMAL
+  scmCheckoutRetryCount: 2
+  
+  securityRealm:
+    local:
+      allowsSignup: false
+      users:
+        - id: "admin"
+          password: "admin123"
+          name: "Administrator"
+          
+  authorizationStrategy:
+    loggedInUsersCanDoAnything:
+      allowAnonymousRead: false
+
+  globalNodeProperties:
+    - envVars:
+        env:
+          - key: "SONARQUBE_URL"
+            value: "http://sonarqube:9000"
+          - key: "NEXUS_URL"
+            value: "http://nexus:8081"
+
+tool:
+  maven:
+    installations:
+      - name: "Maven 3.8"
+        properties:
+          - installSource:
+              installers:
+                - maven:
+                    id: "3.8.6"
+                    
+  sonarRunnerInstallation:
+    installations:
+      - name: "SonarScanner"
+        properties:
+          - installSource:
+              installers:
+                - sonarRunnerInstaller:
+                    id: "4.8.0.2856"
+
+unclassified:
+  location:
+    url: "http://localhost:8080/"
+    
+  sonarGlobalConfiguration:
+    installations:
+      - name: "SonarQube"
+        serverUrl: "http://sonarqube:9000"
+        credentialsId: "sonarqube-token"

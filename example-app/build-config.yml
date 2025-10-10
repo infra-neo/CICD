@@ -1,0 +1,111 @@
+---
+# Build Configuration for CI/CD Pipeline
+
+project:
+  name: "example-app"
+  version: "1.0.0-SNAPSHOT"
+  description: "Sample Java application for CI/CD pipeline demonstration"
+
+build:
+  language: "java"
+  jdk_version: "11"
+  build_tool: "maven"
+  maven_version: "3.8"
+  
+  commands:
+    clean: "mvn clean"
+    compile: "mvn compile"
+    test: "mvn test"
+    package: "mvn package"
+    deploy: "mvn deploy"
+
+testing:
+  unit_tests:
+    enabled: true
+    command: "mvn test"
+    report_path: "target/surefire-reports"
+  
+  integration_tests:
+    enabled: false
+    
+  coverage:
+    enabled: true
+    tool: "jacoco"
+    minimum_coverage: 70
+
+security:
+  dependency_scan:
+    enabled: true
+    tool: "dependency-check"
+    fail_on_cvss: 7
+    command: "mvn dependency-check:check"
+  
+  static_analysis:
+    enabled: true
+    tool: "sonarqube"
+
+sonarqube:
+  project_key: "example-app"
+  server_url: "http://sonarqube:9000"
+  sources: "src/main/java"
+  tests: "src/test/java"
+  exclusions:
+    - "**/target/**"
+    - "**/test/**"
+  
+  quality_gates:
+    coverage: 70
+    duplications: 3
+    maintainability_rating: "A"
+    reliability_rating: "A"
+    security_rating: "A"
+
+nexus:
+  server_url: "http://nexus:8081"
+  repositories:
+    releases:
+      id: "nexus-releases"
+      url: "http://nexus:8081/repository/maven-releases/"
+    snapshots:
+      id: "nexus-snapshots"
+      url: "http://nexus:8081/repository/maven-snapshots/"
+
+maven:
+  settings:
+    cache_enabled: true
+    cache_path: "/root/.m2/repository"
+    
+  profiles:
+    - id: "development"
+      active: true
+    - id: "production"
+      active: false
+
+deployment:
+  branches:
+    main:
+      auto_deploy: true
+      environment: "production"
+      nexus_repository: "releases"
+    
+    develop:
+      auto_deploy: true
+      environment: "staging"
+      nexus_repository: "snapshots"
+    
+    feature/*:
+      auto_deploy: false
+      environment: "development"
+
+notifications:
+  email:
+    enabled: false
+  slack:
+    enabled: false
+
+artifacts:
+  paths:
+    - "target/*.jar"
+    - "target/surefire-reports"
+    - "target/dependency-check-report.html"
+  retention_days: 30
