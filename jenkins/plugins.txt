@@ -1,0 +1,12 @@
+git:latest
+workflow-aggregator:latest
+docker-workflow:latest
+blueocean:latest
+credentials-binding:latest
+pipeline-stage-view:latest
+sonar:latest
+nexus-artifact-uploader:latest
+maven-plugin:latest
+dependency-check-jenkins-plugin:latest
+configuration-as-code:latest
+job-dsl:latest

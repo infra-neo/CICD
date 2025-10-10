@@ -1,0 +1,29 @@
+# Maven
+example-app/target/
+example-app/.mvn/
+example-app/mvnw
+example-app/mvnw.cmd
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Jenkins
+jenkins/secrets/
+
+# Docker
+.env
+
+# Dependency Check
+example-app/dependency-check-data/
