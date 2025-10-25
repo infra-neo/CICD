@@ -204,6 +204,12 @@ Data is stored in Docker volumes:
 - `sonarqube_extensions`: SonarQube plugins
 - `sonarqube_logs`: SonarQube logs
 - `nexus_data`: Nexus repositories and configuration
+- `wildfly_deployments`: WildFly application deployments
+- `wildfly_data`: WildFly runtime data
+- `wildfly_config`: WildFly configuration files
+- `jboss_deployments`: JBoss application deployments
+- `jboss_data`: JBoss runtime data
+- `jboss_config`: JBoss configuration files
 
 ### Default Credentials
 
@@ -218,6 +224,14 @@ Data is stored in Docker volumes:
 **Nexus**:
 - Username: `admin`
 - Password: (generated - see above)
+
+**WildFly**:
+- Username: `admin`
+- Password: `admin`
+
+**JBoss**:
+- Username: `admin`
+- Password: `admin`
 
 > ⚠️ **Important**: Change these default credentials in production!
 
@@ -357,10 +371,80 @@ docker-compose up -d
 
 ## 📚 Additional Resources
 
+### Documentation
+- **[Quick Reference Guide](QUICK_REFERENCE.md)**: Common commands and quick tips
+- **[User Guide](USER_GUIDE.md)**: Comprehensive usage documentation
+- **[Migration Guide](MIGRATION_GUIDE.md)**: JBoss to WildFly migration
+- **[Quick Start](QUICKSTART.md)**: Fast getting started guide
+- **[Configuration](CONFIGURATION.md)**: Advanced configuration options
+- **[Troubleshooting](TROUBLESHOOTING.md)**: Common issues and solutions
+
+### Example Projects
+- **[Simple Maven Example](examples/)**: Basic Maven project
+- **[Web Application](examples/webapp-sample/)**: Full Jakarta EE web app
+
+### External Links
 - [Jenkins Documentation](https://www.jenkins.io/doc/)
 - [SonarQube Documentation](https://docs.sonarqube.org/)
 - [Nexus Repository Manager Documentation](https://help.sonatype.com/repomanager3)
+- [WildFly Documentation](https://docs.wildfly.org/)
 - [Docker Compose Documentation](https://docs.docker.com/compose/)
+
+## 🎯 Key Features Summary
+
+### Complete CI/CD Automation
+✅ Automated build, test, and deployment pipeline  
+✅ Integration with SonarQube for code quality  
+✅ Artifact versioning and storage in Nexus  
+✅ Multi-environment support (dev/staging/prod)
+
+### JBoss/WildFly Support
+✅ Side-by-side JBoss and WildFly containers  
+✅ Migration testing capabilities  
+✅ Automated deployment to both servers  
+✅ Comprehensive migration documentation
+
+### Security Features
+✅ Password scanning in source code  
+✅ Credential masking in logs  
+✅ Environment variable enforcement  
+✅ Secrets management templates  
+✅ SonarQube security analysis
+
+### Version Control
+✅ Automatic artifact versioning  
+✅ Version information embedded in artifacts  
+✅ Configuration versioning  
+✅ Complete audit trail in Nexus
+
+### Flexibility
+✅ Build from Git repositories  
+✅ Build from ZIP files  
+✅ Environment-specific configurations  
+✅ Per-application Maven repositories
+
+### Operations
+✅ Backup and restore capabilities  
+✅ Health monitoring  
+✅ Easy troubleshooting  
+✅ Complete documentation
+
+## 🚀 Use Cases
+
+### 1. JBoss to WildFly Migration
+Perfect for organizations migrating legacy JBoss applications to modern WildFly servers. Test both platforms side-by-side before committing to production migration.
+
+### 2. Multi-Environment Java Development
+Develop, test, and deploy Java applications across dev, staging, and production with environment-specific configurations.
+
+### 3. CI/CD for Enterprise Java
+Complete pipeline for enterprise Java applications with quality gates, security scanning, and automated deployments.
+
+### 4. Application Modernization
+Migrate monolithic applications while maintaining compatibility, using automated testing and deployment.
+
+### 5. Source Code Archive Processing
+Build and deploy applications from archived source code (ZIP files) without Git repositories.
 
 ## 🤝 Contributing
 
