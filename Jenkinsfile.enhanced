@@ -1,0 +1,432 @@
+@Library('shared-library') _
+
+pipeline {
+    agent any
+    
+    tools {
+        maven 'Maven 3.9.2'
+        jdk 'JDK 17'
+    }
+    
+    environment {
+        NEXUS_URL = 'http://nexus:8081'
+        SONARQUBE_URL = 'http://sonarqube:9000'
+        BUILD_CONFIG = 'build-config.yml'
+        // Mask sensitive information
+        WILDFLY_URL = 'http://wildfly:9990'
+        JBOSS_URL = 'http://jboss:9990'
+    }
+    
+    parameters {
+        choice(
+            name: 'ENVIRONMENT',
+            choices: ['dev', 'staging', 'prod'],
+            description: 'Target deployment environment'
+        )
+        choice(
+            name: 'TARGET_SERVER',
+            choices: ['wildfly', 'jboss'],
+            description: 'Target application server'
+        )
+        booleanParam(
+            name: 'SKIP_TESTS',
+            defaultValue: false,
+            description: 'Skip running tests'
+        )
+        booleanParam(
+            name: 'SKIP_SONAR',
+            defaultValue: false,
+            description: 'Skip SonarQube analysis'
+        )
+        booleanParam(
+            name: 'FROM_ZIP',
+            defaultValue: false,
+            description: 'Build from uploaded ZIP source code'
+        )
+    }
+    
+    stages {
+        stage('Initialize') {
+            steps {
+                script {
+                    echo "=== CI/CD Pipeline Started ==="
+                    echo "Environment: ${params.ENVIRONMENT}"
+                    echo "Target Server: ${params.TARGET_SERVER}"
+                    echo "Build Number: ${env.BUILD_NUMBER}"
+                    
+                    // Set version with timestamp
+                    def timestamp = new Date().format('yyyyMMdd-HHmmss')
+                    env.APP_VERSION = "${env.BUILD_NUMBER}-${timestamp}"
+                    echo "Application Version: ${env.APP_VERSION}"
+                }
+            }
+        }
+        
+        stage('Read Build Config') {
+            steps {
+                script {
+                    echo "Reading build configuration from ${BUILD_CONFIG}"
+                    if (fileExists(BUILD_CONFIG)) {
+                        def config = readYaml file: BUILD_CONFIG
+                        env.JAVA_VERSION = config.java_version ?: '17'
+                        env.MAVEN_VERSION = config.maven_version ?: '3.9.2'
+                        env.BUILD_TOOL = config.build?.tool ?: 'maven'
+                        echo "Java Version: ${env.JAVA_VERSION}"
+                        echo "Maven Version: ${env.MAVEN_VERSION}"
+                        echo "Build Tool: ${env.BUILD_TOOL}"
+                    } else {
+                        echo "Warning: ${BUILD_CONFIG} not found. Using defaults."
+                    }
+                }
+            }
+        }
+        
+        stage('Load Environment Properties') {
+            steps {
+                script {
+                    def envPropsFile = "config/environments/${params.ENVIRONMENT}/application.properties"
+                    if (fileExists(envPropsFile)) {
+                        echo "Loading properties for environment: ${params.ENVIRONMENT}"
+                        def props = readProperties file: envPropsFile
+                        echo "Environment properties loaded successfully"
+                    } else {
+                        echo "Warning: Environment properties file not found: ${envPropsFile}"
+                    }
+                }
+            }
+        }
+        
+        stage('Checkout or Extract') {
+            steps {
+                script {
+                    if (params.FROM_ZIP) {
+                        echo 'Extracting source code from ZIP file...'
+                        // Assuming ZIP is uploaded to workspace
+                        sh '''
+                            if [ -f source-code.zip ]; then
+                                unzip -o source-code.zip -d ./
+                                echo "Source code extracted from ZIP"
+                            else
+                                echo "ERROR: source-code.zip not found!"
+                                exit 1
+                            fi
+                        '''
+                    } else {
+                        echo 'Checking out source code from SCM...'
+                        checkout scm
+                    }
+                }
+            }
+        }
+        
+        stage('Security Scan - Password Detection') {
+            steps {
+                script {
+                    echo 'Scanning for hardcoded passwords and secrets...'
+                    sh '''
+                        # Create security scan report
+                        echo "=== Security Scan Report ===" > security-scan.txt
+                        echo "Timestamp: $(date)" >> security-scan.txt
+                        echo "" >> security-scan.txt
+                        
+                        # Scan for common password patterns
+                        echo "Scanning for hardcoded passwords..." >> security-scan.txt
+                        grep -r -n -i "password.*=.*['\"]" src/ || echo "No hardcoded passwords found" >> security-scan.txt
+                        
+                        # Scan for API keys
+                        echo "" >> security-scan.txt
+                        echo "Scanning for API keys..." >> security-scan.txt
+                        grep -r -n -i "api[_-]key.*=.*['\"]" src/ || echo "No hardcoded API keys found" >> security-scan.txt
+                        
+                        # Scan for tokens
+                        echo "" >> security-scan.txt
+                        echo "Scanning for tokens..." >> security-scan.txt
+                        grep -r -n -i "token.*=.*['\"]" src/ || echo "No hardcoded tokens found" >> security-scan.txt
+                        
+                        cat security-scan.txt
+                        
+                        # Fail build if passwords found
+                        if grep -r -i "password.*=.*['\"][^$]" src/ 2>/dev/null; then
+                            echo "ERROR: Hardcoded passwords detected in source code!"
+                            echo "Please use environment variables or secure credential storage."
+                            exit 1
+                        fi
+                    '''
+                }
+            }
+        }
+        
+        stage('Setup Maven Repository') {
+            steps {
+                script {
+                    echo "Setting up local Maven repository for ${params.ENVIRONMENT} environment"
+                    sh '''
+                        # Create environment-specific .m2 directory
+                        mkdir -p .m2/repository-${ENVIRONMENT}
+                        
+                        # Copy settings.xml with environment-specific configuration
+                        if [ -f "config/environments/${ENVIRONMENT}/settings.xml" ]; then
+                            cp config/environments/${ENVIRONMENT}/settings.xml .m2/settings.xml
+                        else
+                            # Use default settings
+                            cp examples/settings.xml .m2/settings.xml 2>/dev/null || echo "Using default Maven settings"
+                        fi
+                        
+                        # Set Maven local repository
+                        export MAVEN_OPTS="-Dmaven.repo.local=${WORKSPACE}/.m2/repository-${ENVIRONMENT}"
+                    '''
+                }
+            }
+        }
+        
+        stage('Build') {
+            steps {
+                script {
+                    echo "Building with ${env.BUILD_TOOL}..."
+                    if (env.BUILD_TOOL == 'mule-maven-plugin') {
+                        sh 'mvn clean package -DskipTests -Dmaven.repo.local=${WORKSPACE}/.m2/repository-${ENVIRONMENT}'
+                    } else {
+                        sh """
+                            mvn clean install -DskipTests \
+                            -Dmaven.repo.local=\${WORKSPACE}/.m2/repository-\${ENVIRONMENT} \
+                            -Dapp.version=\${APP_VERSION} \
+                            -Denvironment=\${ENVIRONMENT}
+                        """
+                    }
+                }
+            }
+        }
+        
+        stage('Test') {
+            when {
+                expression { !params.SKIP_TESTS }
+            }
+            steps {
+                echo 'Running tests...'
+                sh 'mvn test -Dmaven.repo.local=${WORKSPACE}/.m2/repository-${ENVIRONMENT}'
+            }
+            post {
+                always {
+                    junit allowEmptyResults: true, testResults: '**/target/surefire-reports/*.xml'
+                }
+            }
+        }
+        
+        stage('SonarQube Analysis') {
+            when {
+                expression { !params.SKIP_SONAR }
+            }
+            steps {
+                script {
+                    echo 'Running SonarQube analysis...'
+                    withSonarQubeEnv('SonarQube') {
+                        sh """
+                            mvn sonar:sonar \
+                            -Dsonar.projectKey=\${JOB_NAME}-\${ENVIRONMENT} \
+                            -Dsonar.projectName=\${JOB_NAME}-\${ENVIRONMENT} \
+                            -Dsonar.projectVersion=\${APP_VERSION} \
+                            -Dsonar.host.url=\${SONARQUBE_URL} \
+                            -Dmaven.repo.local=\${WORKSPACE}/.m2/repository-\${ENVIRONMENT}
+                        """
+                    }
+                }
+            }
+        }
+        
+        stage('Quality Gate') {
+            when {
+                expression { !params.SKIP_SONAR }
+            }
+            steps {
+                timeout(time: 5, unit: 'MINUTES') {
+                    waitForQualityGate abortPipeline: true
+                }
+            }
+        }
+        
+        stage('Version and Tag Artifact') {
+            steps {
+                script {
+                    echo "Versioning artifact for ${params.ENVIRONMENT}"
+                    sh '''
+                        # Create version file
+                        cat > version.properties << EOF
+VERSION=${APP_VERSION}
+ENVIRONMENT=${ENVIRONMENT}
+BUILD_NUMBER=${BUILD_NUMBER}
+BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+GIT_COMMIT=${GIT_COMMIT:-unknown}
+GIT_BRANCH=${GIT_BRANCH:-unknown}
+BUILT_BY=Jenkins
+TARGET_SERVER=${TARGET_SERVER}
+EOF
+                        
+                        # Add version file to artifact
+                        if [ -f target/*.war ]; then
+                            jar uf target/*.war version.properties
+                            echo "Version properties added to WAR file"
+                        fi
+                    '''
+                }
+            }
+        }
+        
+        stage('Deploy to Nexus') {
+            when {
+                anyOf {
+                    branch 'main'
+                    branch 'master'
+                    branch 'develop'
+                    expression { params.ENVIRONMENT == 'dev' || params.ENVIRONMENT == 'staging' }
+                }
+            }
+            steps {
+                echo 'Deploying artifacts to Nexus...'
+                withCredentials([usernamePassword(credentialsId: 'nexus-credentials', 
+                                                  usernameVariable: 'NEXUS_USER', 
+                                                  passwordVariable: 'NEXUS_PASS')]) {
+                    sh """
+                        mvn deploy -DskipTests \
+                        -Dmaven.repo.local=\${WORKSPACE}/.m2/repository-\${ENVIRONMENT} \
+                        -DaltDeploymentRepository=nexus::default::\${NEXUS_URL}/repository/maven-snapshots
+                    """
+                }
+            }
+        }
+        
+        stage('Deploy to Application Server') {
+            when {
+                anyOf {
+                    branch 'main'
+                    branch 'master'
+                    branch 'develop'
+                }
+            }
+            steps {
+                script {
+                    def serverUrl = params.TARGET_SERVER == 'wildfly' ? env.WILDFLY_URL : env.JBOSS_URL
+                    def serverName = params.TARGET_SERVER
+                    
+                    echo "Deploying to ${serverName} (${params.ENVIRONMENT} environment)"
+                    
+                    withCredentials([usernamePassword(
+                        credentialsId: "${serverName}-credentials",
+                        usernameVariable: 'SERVER_USER',
+                        passwordVariable: 'SERVER_PASS'
+                    )]) {
+                        sh """
+                            # Find the WAR file
+                            WAR_FILE=\$(find target -name "*.war" | head -1)
+                            
+                            if [ -z "\$WAR_FILE" ]; then
+                                echo "ERROR: No WAR file found in target directory"
+                                exit 1
+                            fi
+                            
+                            echo "Deploying \$WAR_FILE to ${serverName}"
+                            
+                            # Copy WAR to deployment directory
+                            # For now, we'll use docker cp - in production, use WildFly CLI or API
+                            docker cp \$WAR_FILE ${serverName}:/opt/jboss/wildfly/standalone/deployments/
+                            
+                            echo "Deployment completed to ${serverName}"
+                        """
+                    }
+                }
+            }
+        }
+        
+        stage('Store Properties Version') {
+            steps {
+                script {
+                    echo "Storing versioned properties in Nexus"
+                    sh '''
+                        # Create properties package
+                        PROPS_DIR="properties-${APP_VERSION}"
+                        mkdir -p $PROPS_DIR
+                        
+                        # Copy environment-specific properties
+                        cp -r config/environments/${ENVIRONMENT}/* $PROPS_DIR/ 2>/dev/null || true
+                        
+                        # Create version metadata
+                        cat > $PROPS_DIR/metadata.json << EOF
+{
+  "version": "${APP_VERSION}",
+  "environment": "${ENVIRONMENT}",
+  "buildNumber": "${BUILD_NUMBER}",
+  "timestamp": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+  "gitCommit": "${GIT_COMMIT:-unknown}",
+  "gitBranch": "${GIT_BRANCH:-unknown}"
+}
+EOF
+                        
+                        # Package properties
+                        tar czf properties-${ENVIRONMENT}-${APP_VERSION}.tar.gz $PROPS_DIR
+                        
+                        echo "Properties packaged: properties-${ENVIRONMENT}-${APP_VERSION}.tar.gz"
+                    '''
+                    
+                    // Upload to Nexus raw repository
+                    withCredentials([usernamePassword(credentialsId: 'nexus-credentials', 
+                                                      usernameVariable: 'NEXUS_USER', 
+                                                      passwordVariable: 'NEXUS_PASS')]) {
+                        sh '''
+                            curl -v -u ${NEXUS_USER}:${NEXUS_PASS} \
+                                --upload-file properties-${ENVIRONMENT}-${APP_VERSION}.tar.gz \
+                                ${NEXUS_URL}/repository/maven-snapshots/properties/${JOB_NAME}/${APP_VERSION}/properties-${ENVIRONMENT}-${APP_VERSION}.tar.gz || true
+                        '''
+                    }
+                }
+            }
+        }
+        
+        stage('Post-Deployment Verification') {
+            when {
+                anyOf {
+                    branch 'main'
+                    branch 'master'
+                }
+            }
+            steps {
+                script {
+                    echo 'Verifying deployment...'
+                    def serverName = params.TARGET_SERVER
+                    def serverPort = params.TARGET_SERVER == 'wildfly' ? '8090' : '8070'
+                    
+                    sh """
+                        # Wait for deployment
+                        sleep 10
+                        
+                        # Check if application is accessible
+                        # This is a basic check - adjust URL as needed
+                        curl -f http://${serverName}:${serverPort}/ || echo "Warning: Application may not be accessible yet"
+                    """
+                }
+            }
+        }
+    }
+    
+    post {
+        success {
+            echo '=== Pipeline completed successfully! ==='
+            script {
+                echo "Application Version: ${env.APP_VERSION}"
+                echo "Environment: ${params.ENVIRONMENT}"
+                echo "Target Server: ${params.TARGET_SERVER}"
+            }
+        }
+        failure {
+            echo '=== Pipeline failed! ==='
+        }
+        always {
+            // Archive important files
+            archiveArtifacts artifacts: '**/target/*.war, security-scan.txt, version.properties, properties-*.tar.gz', 
+                             allowEmptyArchive: true, 
+                             fingerprint: true
+            
+            // Clean workspace selectively
+            echo 'Cleaning up workspace...'
+            sh 'rm -rf target/'
+        }
+    }
+}

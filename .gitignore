@@ -12,6 +12,10 @@ docker-compose.override.yml
 # Environment files
 .env
 .env.local
+config/secrets.env
+config/**/*.env
+**/secrets.properties
+**/*-secrets.properties
 
 # Temporary files
 *.tmp

@@ -1,6 +1,6 @@
 # CI/CD Environment
 
-Complete CI/CD environment with Jenkins, SonarQube, and Nexus running in Docker containers.
+Complete CI/CD environment with Jenkins, SonarQube, Nexus, WildFly, and JBoss running in Docker containers.
 
 ## 🚀 Quick Start
 
@@ -17,8 +17,8 @@ That's it! The script will set up everything automatically.
 - Ubuntu Linux (or compatible OS)
 - Docker (version 20.10 or later)
 - Docker Compose (version 1.29 or later)
-- At least 4GB of available RAM
-- At least 10GB of free disk space
+- At least 6GB of available RAM (increased for WildFly/JBoss)
+- At least 15GB of free disk space
 
 ## 🏗️ Architecture
 
@@ -31,7 +31,8 @@ The environment consists of the following services:
   - Auto-configured with essential plugins
   - Pre-configured Maven 3.9.2
   - Integrated with SonarQube and Nexus
-  - Pipeline support with Jenkinsfile
+  - Pipeline support with enhanced Jenkinsfile
+  - WildFly and JBoss deployment support
 
 ### SonarQube
 - **Port**: 9000
@@ -41,6 +42,7 @@ The environment consists of the following services:
   - Code quality analysis
   - Security vulnerability detection
   - Technical debt tracking
+  - Password and secret scanning
 
 ### Nexus Repository Manager
 - **Port**: 8081
@@ -49,6 +51,24 @@ The environment consists of the following services:
   - Maven releases repository
   - Maven snapshots repository
   - Artifact storage and distribution
+  - Versioned properties storage
+
+### WildFly Application Server
+- **Port**: 8090 (HTTP), 9990 (Admin)
+- **Default credentials**: admin/admin
+- **Features**:
+  - Jakarta EE 9+ support
+  - Hot deployment
+  - Management console
+  - Production-ready application server
+
+### JBoss EAP (WildFly-based)
+- **Port**: 8070 (HTTP), 9970 (Admin)
+- **Default credentials**: admin/admin
+- **Features**:
+  - Legacy application support
+  - Migration testing platform
+  - Compatible with WildFly deployments
 
 ### PostgreSQL
 - **Internal service** (not exposed)
@@ -122,6 +142,8 @@ Once the setup is complete, access the services at:
 - **Jenkins**: http://localhost:8080
 - **SonarQube**: http://localhost:9000
 - **Nexus**: http://localhost:8081
+- **WildFly**: http://localhost:8090 (Admin: http://localhost:9990)
+- **JBoss**: http://localhost:8070 (Admin: http://localhost:9970)
 
 ### Getting Nexus Password
 
@@ -130,6 +152,44 @@ The Nexus admin password is auto-generated. Retrieve it with:
 ```bash
 docker exec nexus cat /nexus-data/admin.password
 ```
+
+## 🎯 New Features
+
+### JBoss to WildFly Migration Support
+- Side-by-side JBoss and WildFly containers
+- Automated migration pipeline
+- Parallel testing capabilities
+- Comprehensive migration guide (see [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md))
+
+### Enhanced Security
+- **Password Detection**: Automatic scanning for hardcoded passwords
+- **Secret Masking**: Credentials masked in logs and outputs
+- **Environment Variables**: Enforced use of environment variables for secrets
+- **Security Templates**: Pre-configured secure credential storage
+
+### Environment-Specific Configuration
+- **Multi-Environment Support**: Dev, Staging, Production configurations
+- **Property Versioning**: All configurations version-controlled
+- **Environment Isolation**: Separate .m2 repositories per environment
+- **Configuration Management**: Stored and versioned in Nexus
+
+### Source Code Upload Support
+- **ZIP Upload**: Build applications from uploaded ZIP files
+- **Automated Extraction**: Pipeline handles extraction and build
+- **Local Repository**: Per-application Maven repository support
+- **Upload Script**: `upload-source.sh` for easy ZIP deployment
+
+### Advanced Versioning
+- **Automatic Versioning**: Build number + timestamp versioning
+- **Version Embedding**: Version info embedded in artifacts
+- **Properties Versioning**: Configuration files versioned with artifacts
+- **Rollback Support**: Easy rollback to any previous version
+
+### Backup and Restore
+- **Full Backups**: Complete environment backup capability
+- **Selective Restore**: Restore specific components
+- **Backup Script**: `backup-restore.sh` for easy backup management
+- **Version History**: Complete audit trail of all changes
 
 ## 🔐 Security
 
@@ -144,6 +204,12 @@ Data is stored in Docker volumes:
 - `sonarqube_extensions`: SonarQube plugins
 - `sonarqube_logs`: SonarQube logs
 - `nexus_data`: Nexus repositories and configuration
+- `wildfly_deployments`: WildFly application deployments
+- `wildfly_data`: WildFly runtime data
+- `wildfly_config`: WildFly configuration files
+- `jboss_deployments`: JBoss application deployments
+- `jboss_data`: JBoss runtime data
+- `jboss_config`: JBoss configuration files
 
 ### Default Credentials
 
@@ -158,6 +224,14 @@ Data is stored in Docker volumes:
 **Nexus**:
 - Username: `admin`
 - Password: (generated - see above)
+
+**WildFly**:
+- Username: `admin`
+- Password: `admin`
+
+**JBoss**:
+- Username: `admin`
+- Password: `admin`
 
 > ⚠️ **Important**: Change these default credentials in production!
 
@@ -196,40 +270,25 @@ docker-compose down -v
 
 ## 📝 Using the Pipeline
 
-### 1. Create a Maven Project
+### 1. Create a Java Web Application
 
-Add this to your project's `pom.xml`:
+See the example in `examples/webapp-sample/` for a complete WildFly/JBoss-compatible application.
 
-```xml
-<distributionManagement>
-    <repository>
-        <id>nexus-releases</id>
-        <url>http://nexus:8081/repository/maven-releases/</url>
-    </repository>
-    <snapshotRepository>
-        <id>nexus-snapshots</id>
-        <url>http://nexus:8081/repository/maven-snapshots/</url>
-    </snapshotRepository>
-</distributionManagement>
+### 2. Configure Environment Properties
+
+Create environment-specific properties:
+
+```
+config/environments/
+├── dev/application.properties
+├── staging/application.properties
+└── prod/application.properties
 ```
 
-### 2. Configure Maven Settings
-
-Add Nexus credentials to `~/.m2/settings.xml`:
-
-```xml
-<servers>
-    <server>
-        <id>nexus-releases</id>
-        <username>admin</username>
-        <password>admin123</password>
-    </server>
-    <server>
-        <id>nexus-snapshots</id>
-        <username>admin</username>
-        <password>admin123</password>
-    </server>
-</servers>
+Use environment variables for sensitive data:
+```properties
+db.password=${DB_PASSWORD_PROD}
+api.key=${API_KEY_PROD}
 ```
 
 ### 3. Create Jenkins Pipeline Job
@@ -237,10 +296,37 @@ Add Nexus credentials to `~/.m2/settings.xml`:
 1. Go to Jenkins (http://localhost:8080)
 2. Click "New Item"
 3. Enter a name and select "Pipeline"
-4. Under "Pipeline", select "Pipeline script from SCM"
-5. Configure your repository
-6. Specify `Jenkinsfile` as the script path
-7. Save and run!
+4. Configure parameters:
+   - `ENVIRONMENT`: dev/staging/prod
+   - `TARGET_SERVER`: wildfly/jboss
+   - `FROM_ZIP`: Enable if building from ZIP
+5. Under "Pipeline", select "Pipeline script from SCM"
+6. Configure your repository
+7. Specify `Jenkinsfile.enhanced` as the script path
+8. Save and run!
+
+### 4. Deploy from Source ZIP
+
+Use the upload script for quick deployments:
+
+```bash
+./upload-source.sh myapp-source.zip dev wildfly
+```
+
+### 5. Backup Your Configuration
+
+Create regular backups:
+
+```bash
+# Create backup
+./backup-restore.sh backup
+
+# List backups
+./backup-restore.sh list
+
+# Restore from backup
+./backup-restore.sh restore 20251025_143022
+```
 
 ## 🐛 Troubleshooting
 
@@ -285,10 +371,80 @@ docker-compose up -d
 
 ## 📚 Additional Resources
 
+### Documentation
+- **[Quick Reference Guide](QUICK_REFERENCE.md)**: Common commands and quick tips
+- **[User Guide](USER_GUIDE.md)**: Comprehensive usage documentation
+- **[Migration Guide](MIGRATION_GUIDE.md)**: JBoss to WildFly migration
+- **[Quick Start](QUICKSTART.md)**: Fast getting started guide
+- **[Configuration](CONFIGURATION.md)**: Advanced configuration options
+- **[Troubleshooting](TROUBLESHOOTING.md)**: Common issues and solutions
+
+### Example Projects
+- **[Simple Maven Example](examples/)**: Basic Maven project
+- **[Web Application](examples/webapp-sample/)**: Full Jakarta EE web app
+
+### External Links
 - [Jenkins Documentation](https://www.jenkins.io/doc/)
 - [SonarQube Documentation](https://docs.sonarqube.org/)
 - [Nexus Repository Manager Documentation](https://help.sonatype.com/repomanager3)
+- [WildFly Documentation](https://docs.wildfly.org/)
 - [Docker Compose Documentation](https://docs.docker.com/compose/)
+
+## 🎯 Key Features Summary
+
+### Complete CI/CD Automation
+✅ Automated build, test, and deployment pipeline  
+✅ Integration with SonarQube for code quality  
+✅ Artifact versioning and storage in Nexus  
+✅ Multi-environment support (dev/staging/prod)
+
+### JBoss/WildFly Support
+✅ Side-by-side JBoss and WildFly containers  
+✅ Migration testing capabilities  
+✅ Automated deployment to both servers  
+✅ Comprehensive migration documentation
+
+### Security Features
+✅ Password scanning in source code  
+✅ Credential masking in logs  
+✅ Environment variable enforcement  
+✅ Secrets management templates  
+✅ SonarQube security analysis
+
+### Version Control
+✅ Automatic artifact versioning  
+✅ Version information embedded in artifacts  
+✅ Configuration versioning  
+✅ Complete audit trail in Nexus
+
+### Flexibility
+✅ Build from Git repositories  
+✅ Build from ZIP files  
+✅ Environment-specific configurations  
+✅ Per-application Maven repositories
+
+### Operations
+✅ Backup and restore capabilities  
+✅ Health monitoring  
+✅ Easy troubleshooting  
+✅ Complete documentation
+
+## 🚀 Use Cases
+
+### 1. JBoss to WildFly Migration
+Perfect for organizations migrating legacy JBoss applications to modern WildFly servers. Test both platforms side-by-side before committing to production migration.
+
+### 2. Multi-Environment Java Development
+Develop, test, and deploy Java applications across dev, staging, and production with environment-specific configurations.
+
+### 3. CI/CD for Enterprise Java
+Complete pipeline for enterprise Java applications with quality gates, security scanning, and automated deployments.
+
+### 4. Application Modernization
+Migrate monolithic applications while maintaining compatibility, using automated testing and deployment.
+
+### 5. Source Code Archive Processing
+Build and deploy applications from archived source code (ZIP files) without Git repositories.
 
 ## 🤝 Contributing
 

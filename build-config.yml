@@ -13,6 +13,7 @@ build:
   tool: maven  # Options: maven, mule-maven-plugin
   clean_install: true
   skip_tests: false
+  packaging: war  # Options: jar, war, ear
 
 # Test Configuration
 test:
@@ -25,6 +26,7 @@ sonarqube:
   host_url: http://sonarqube:9000
   project_key: ${env.JOB_NAME}
   project_name: ${env.JOB_NAME}
+  security_scan: true  # Enable security vulnerability scanning
 
 # Nexus Configuration
 nexus:
@@ -34,6 +36,39 @@ nexus:
     releases: maven-releases
     snapshots: maven-snapshots
 
+# Application Server Configuration
+appserver:
+  type: wildfly  # Options: wildfly, jboss
+  wildfly:
+    url: http://wildfly:9990
+    deployment_dir: /opt/jboss/wildfly/standalone/deployments
+    admin_port: 9990
+    http_port: 8090
+  jboss:
+    url: http://jboss:9990
+    deployment_dir: /opt/jboss/wildfly/standalone/deployments
+    admin_port: 9970
+    http_port: 8070
+
+# Environment Configuration
+environments:
+  - dev
+  - staging
+  - prod
+  default: dev
+
+# Security Configuration
+security:
+  password_scan: true  # Scan for hardcoded passwords
+  mask_credentials: true  # Mask credentials in logs
+  enforce_env_vars: true  # Enforce use of environment variables for secrets
+
+# Versioning Configuration
+versioning:
+  enabled: true
+  format: ${BUILD_NUMBER}-${TIMESTAMP}  # Options: semantic, timestamp, build_number
+  store_properties: true  # Store versioned properties in Nexus
+  
 # Additional Maven Goals
 maven:
   goals:
