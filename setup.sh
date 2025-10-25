@@ -57,12 +57,37 @@ until curl -s http://localhost:8081 > /dev/null 2>&1; do
 done
 echo "    Nexus is up!"
 
+# Wait for WildFly
+echo "  - Waiting for WildFly..."
+until curl -s http://localhost:8090 > /dev/null 2>&1; do
+    sleep 5
+done
+echo "    WildFly is up!"
+
+# Wait for JBoss
+echo "  - Waiting for JBoss..."
+until curl -s http://localhost:8070 > /dev/null 2>&1; do
+    sleep 5
+done
+echo "    JBoss is up!"
+
 echo ""
-echo "Step 4: Additional service configuration..."
+echo "Step 4: Configuring application servers..."
+
+# Configure WildFly admin user
+echo "  - Configuring WildFly admin user..."
+docker exec wildfly /opt/jboss/wildfly/bin/add-user.sh admin admin --silent 2>/dev/null || echo "    WildFly admin user may already exist"
+
+# Configure JBoss admin user
+echo "  - Configuring JBoss admin user..."
+docker exec jboss /opt/jboss/wildfly/bin/add-user.sh admin admin --silent 2>/dev/null || echo "    JBoss admin user may already exist"
+
+echo ""
+echo "Step 5: Additional service initialization..."
 
 # Wait a bit more for services to fully initialize
-echo "  - Allowing services to fully initialize (60 seconds)..."
-sleep 60
+echo "  - Allowing services to fully initialize (30 seconds)..."
+sleep 30
 
 echo ""
 echo "========================================="
@@ -70,6 +95,7 @@ echo "Setup Complete!"
 echo "========================================="
 echo ""
 echo "Services are now running:"
+echo ""
 echo "  - Jenkins:   http://localhost:8080"
 echo "    Username: admin"
 echo "    Password: admin"
@@ -80,10 +106,42 @@ echo "    Password: admin"
 echo ""
 echo "  - Nexus:     http://localhost:8081"
 echo "    Username: admin"
-echo "    Password: Check container logs with:"
+echo "    Password: Check with:"
 echo "              docker exec nexus cat /nexus-data/admin.password"
 echo ""
+echo "  - WildFly:   http://localhost:8090"
+echo "    Admin:     http://localhost:9990"
+echo "    Username:  admin"
+echo "    Password:  admin"
+echo ""
+echo "  - JBoss:     http://localhost:8070"
+echo "    Admin:     http://localhost:9970"
+echo "    Username:  admin"
+echo "    Password:  admin"
+echo ""
 echo "Network: cicd-network (bridge)"
+echo ""
+echo "========================================="
+echo "Quick Start:"
+echo "========================================="
+echo ""
+echo "1. Deploy sample web application:"
+echo "   cd examples/webapp-sample"
+echo "   mvn clean package"
+echo "   docker cp target/*.war wildfly:/opt/jboss/wildfly/standalone/deployments/"
+echo ""
+echo "2. Upload source from ZIP:"
+echo "   ./upload-source.sh myapp.zip dev wildfly"
+echo ""
+echo "3. Create backup:"
+echo "   ./backup-restore.sh backup"
+echo ""
+echo "4. Read migration guide:"
+echo "   cat MIGRATION_GUIDE.md"
+echo ""
+echo "========================================="
+echo "Useful Commands:"
+echo "========================================="
 echo ""
 echo "To stop all services:"
 echo "  $DOCKER_COMPOSE down"
