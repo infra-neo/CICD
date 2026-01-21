@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- POM.xml Template - Generated from Project_Master_Config.xlsx -->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 
+         http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.example</groupId>
+    <artifactId>my-application</artifactId>
+    <version>1.0.0</version>
+    <packaging>war</packaging>
+
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        {% if 'ALL' in variables %}
+        {% if 'JAVA_VERSION' in variables['ALL'] %}
+        <maven.compiler.source>{{ variables['ALL']['JAVA_VERSION'] }}</maven.compiler.source>
+        <maven.compiler.target>{{ variables['ALL']['JAVA_VERSION'] }}</maven.compiler.target>
+        {% endif %}
+        {% endif %}
+        
+        <!-- Component Versions -->
+        {% if build_info %}
+        {% for component, info in build_info.items() %}
+        {% set tag_name = component.replace('-', '.') %}
+        <{{ tag_name }}.version>{{ info.version }}</{{ tag_name }}.version>
+        {% endfor %}
+        {% endif %}
+    </properties>
+
+    <dependencies>
+        <!-- Dependencies will be added based on build_info -->
+        {% if build_info %}
+        {% for component, info in build_info.items() %}
+        <!-- {{ component }} -->
+        {% endfor %}
+        {% endif %}
+    </dependencies>
+
+    <profiles>
+        {% if build_info %}
+        {% for component, info in build_info.items() %}
+        {% if info.maven_profile %}
+        <profile>
+            <id>{{ info.maven_profile }}</id>
+        </profile>
+        {% endif %}
+        {% endfor %}
+        {% endif %}
+    </profiles>
+
+    <build>
+        <finalName>${project.artifactId}</finalName>
+    </build>
+</project>

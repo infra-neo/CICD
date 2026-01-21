@@ -1,0 +1,148 @@
+# GitLab CI/CD Pipeline para Configuración Automatizada
+# Este pipeline lee configuración desde Excel y la inyecta en GitLab CI/CD
+
+stages:
+  - configure
+
+# Job principal para configurar el proyecto desde Excel
+configure-project:
+  stage: configure
+  image: python:3.11-slim
+  
+  # Variables de entorno necesarias
+  # GIT_TOKEN y CI_PROJECT_ID deben estar configuradas en GitLab CI/CD Settings
+  variables:
+    EXCEL_PATH: "Project_Master_Config.xlsx"
+  
+  # Se ejecuta manualmente o cuando cambia el Excel
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      changes:
+        - Project_Master_Config.xlsx
+        - config_loader.py
+        - templates/**/*
+      when: always
+    - when: manual  # Ejecución manual en cualquier otro caso
+  
+  # Script de instalación y ejecución
+  before_script:
+    - echo "Instalando dependencias de Python..."
+    - pip install --no-cache-dir --upgrade pip
+    - pip install --no-cache-dir pandas python-gitlab openpyxl jinja2
+    - echo "Dependencias instaladas correctamente"
+    - echo "Verificando archivos necesarios..."
+    - ls -la
+    
+  script:
+    - echo "═══════════════════════════════════════════════════════════"
+    - echo "Iniciando configuración del proyecto desde Excel"
+    - echo "═══════════════════════════════════════════════════════════"
+    - echo "GitLab URL: $CI_SERVER_URL"
+    - echo "Project ID: $CI_PROJECT_ID"
+    - echo "Excel Path: $EXCEL_PATH"
+    - echo ""
+    
+    # Validar que el archivo Excel existe
+    - |
+      if [ ! -f "$EXCEL_PATH" ]; then
+        echo "ERROR: El archivo $EXCEL_PATH no existe"
+        echo "Por favor, asegúrate de que el archivo Excel esté en el repositorio"
+        exit 1
+      fi
+    
+    # Ejecutar el script de configuración
+    - python config_loader.py
+    
+    # Verificar si se generaron archivos
+    - |
+      if [ -d "generated_configs" ]; then
+        echo ""
+        echo "═══════════════════════════════════════════════════════════"
+        echo "Archivos de configuración generados:"
+        echo "═══════════════════════════════════════════════════════════"
+        ls -lh generated_configs/
+      fi
+  
+  # Guardar archivos generados como artefactos
+  artifacts:
+    name: "config-$CI_COMMIT_SHORT_SHA"
+    paths:
+      - generated_configs/
+    expire_in: 30 days
+    when: on_success
+  
+  # Configuración adicional
+  timeout: 15m
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+  
+  # Solo permitir en ramas protegidas para seguridad
+  only:
+    refs:
+      - main
+      - master
+      - develop
+      - /^release\/.*$/
+  
+  # Tags para ejecutar en runners específicos si es necesario
+  # tags:
+  #   - docker
+  #   - linux
+
+# Job opcional para validar el Excel antes de aplicar cambios
+validate-excel:
+  stage: configure
+  image: python:3.11-slim
+  
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - Project_Master_Config.xlsx
+  
+  before_script:
+    - pip install --no-cache-dir pandas openpyxl
+  
+  script:
+    - echo "Validando estructura del archivo Excel..."
+    - |
+      python3 << 'EOF'
+      import pandas as pd
+      import sys
+      
+      try:
+          # Validar que el archivo existe
+          excel_file = 'Project_Master_Config.xlsx'
+          
+          # Intentar leer las hojas esperadas
+          print("Validando hoja 'Variables'...")
+          vars_df = pd.read_excel(excel_file, sheet_name='Variables', engine='openpyxl')
+          required_cols = ['Key', 'Value', 'Environment', 'Protected']
+          missing_cols = [col for col in required_cols if col not in vars_df.columns]
+          
+          if missing_cols:
+              print(f"ERROR: Faltan columnas en 'Variables': {missing_cols}")
+              sys.exit(1)
+          
+          print(f"✓ Hoja 'Variables' válida ({len(vars_df)} filas)")
+          
+          # Validar Build_Info si existe
+          try:
+              build_df = pd.read_excel(excel_file, sheet_name='Build_Info', engine='openpyxl')
+              print(f"✓ Hoja 'Build_Info' válida ({len(build_df)} filas)")
+          except ValueError:
+              print("ℹ Hoja 'Build_Info' no encontrada (opcional)")
+          
+          print("\n✓ Validación exitosa del archivo Excel")
+          
+      except FileNotFoundError:
+          print("ERROR: Archivo Excel no encontrado")
+          sys.exit(1)
+      except Exception as e:
+          print(f"ERROR: {e}")
+          sys.exit(1)
+      EOF
+  
+  allow_failure: false
