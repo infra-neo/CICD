@@ -51,3 +51,6 @@ buildNumber.properties
 *.zip
 *.tar.gz
 *.nar
+
+# Generated configuration files
+generated_configs/

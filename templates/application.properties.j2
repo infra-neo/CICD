@@ -1,0 +1,42 @@
+# Application Properties Template
+# Generated from Project_Master_Config.xlsx
+
+## Global Variables (ALL environments)
+{% if 'ALL' in variables %}
+{% for key, value in variables['ALL'].items() %}
+{{ key }}={{ value }}
+{% endfor %}
+{% endif %}
+
+## QA Environment Variables
+{% if 'QA' in variables %}
+# QA Specific Configuration
+{% for key, value in variables['QA'].items() %}
+# {{ key }}={{ value }}
+{% endfor %}
+{% endif %}
+
+## PRE Environment Variables
+{% if 'PRE' in variables %}
+# PRE Specific Configuration
+{% for key, value in variables['PRE'].items() %}
+# {{ key }}={{ value }}
+{% endfor %}
+{% endif %}
+
+## PROD Environment Variables
+{% if 'PROD' in variables %}
+# PROD Specific Configuration
+{% for key, value in variables['PROD'].items() %}
+# {{ key }}={{ value }}
+{% endfor %}
+{% endif %}
+
+## Build Information
+{% if build_info %}
+# Component Versions
+{% for component, info in build_info.items() %}
+# {{ component }}.version={{ info.version }}
+# {{ component }}.maven_profile={{ info.maven_profile }}
+{% endfor %}
+{% endif %}
