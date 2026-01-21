@@ -1,5 +1,7 @@
 # Application Properties Template
 # Generated from Project_Master_Config.xlsx
+# Note: This file contains ALL variables. For environment-specific deployment,
+# use GitLab CI/CD variables which are automatically scoped by environment.
 
 ## Global Variables (ALL environments)
 {% if 'ALL' in variables %}
@@ -8,27 +10,28 @@
 {% endfor %}
 {% endif %}
 
-## QA Environment Variables
+## Environment-Specific Variables
+# These variables are defined in GitLab CI/CD with environment scoping
+# They will be automatically injected based on the deployment environment
+
 {% if 'QA' in variables %}
-# QA Specific Configuration
+# QA Environment Configuration
 {% for key, value in variables['QA'].items() %}
-# {{ key }}={{ value }}
+# QA: {{ key }}={{ value }}
 {% endfor %}
 {% endif %}
 
-## PRE Environment Variables
 {% if 'PRE' in variables %}
-# PRE Specific Configuration
+# PRE Environment Configuration
 {% for key, value in variables['PRE'].items() %}
-# {{ key }}={{ value }}
+# PRE: {{ key }}={{ value }}
 {% endfor %}
 {% endif %}
 
-## PROD Environment Variables
 {% if 'PROD' in variables %}
-# PROD Specific Configuration
+# PROD Environment Configuration
 {% for key, value in variables['PROD'].items() %}
-# {{ key }}={{ value }}
+# PROD: {{ key }}={{ value }}
 {% endfor %}
 {% endif %}
 

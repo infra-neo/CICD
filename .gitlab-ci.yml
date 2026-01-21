@@ -16,15 +16,13 @@ configure-project:
   
   # Se ejecuta manualmente o cuando cambia el Excel
   rules:
-    - if: '$CI_PIPELINE_SOURCE == "web"'  # Manual trigger
-      when: manual
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
       changes:
         - Project_Master_Config.xlsx
         - config_loader.py
         - templates/**/*
       when: always
-    - when: manual  # Fallback para ejecución manual
+    - when: manual  # Ejecución manual en cualquier otro caso
   
   # Script de instalación y ejecución
   before_script:
@@ -70,8 +68,6 @@ configure-project:
     name: "config-$CI_COMMIT_SHORT_SHA"
     paths:
       - generated_configs/
-    reports:
-      dotenv: generated_configs/*.env
     expire_in: 30 days
     when: on_success
   

@@ -23,7 +23,8 @@
         <!-- Component Versions -->
         {% if build_info %}
         {% for component, info in build_info.items() %}
-        <{{ component }}.version>{{ info.version }}</{{ component }}.version>
+        {% set tag_name = component.replace('-', '.') %}
+        <{{ tag_name }}.version>{{ info.version }}</{{ tag_name }}.version>
         {% endfor %}
         {% endif %}
     </properties>
